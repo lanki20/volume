@@ -105,6 +105,8 @@
                 innerSize: [24, 23, 19], 
                 waterInit: 18,
                 waterFinal: 15,
+                labelInitText: "水深 18cm",
+                labelFinalText: "水深 15cm",
                 objectType: "brick",
                 objectSize: [12, 6, 18],
                 objectsCount: 1,
@@ -121,6 +123,8 @@
                 innerSize: [12, 20, 8], 
                 waterInit: 10,
                 waterFinal: 15,
+                labelInitText: "水深 10cm",
+                labelFinalText: "上升 ? cm",
                 objectType: "stone",
                 objectSize: [6, 5, 5], 
                 objectsCount: 1,
@@ -137,6 +141,8 @@
                 innerSize: [18, 16, 15], 
                 waterInit: 12,
                 waterFinal: 10,
+                labelInitText: "水深 12cm",
+                labelFinalText: "下降 2cm",
                 objectType: "blocks",
                 objectSize: [3.5, 3.5, 3.5], 
                 objectsCount: 5,
@@ -153,6 +159,8 @@
                 innerSize: [20, 20, 20], 
                 waterInit: 12,
                 waterFinal: 13,
+                labelInitText: "水深 12cm",
+                labelFinalText: "水深變成 ? cm",
                 objectType: "iron_ball",
                 objectSize: [9.14, 9.14, 9.14], 
                 objectsCount: 1,
@@ -285,8 +293,8 @@
             
             markFinal.visible = false;
             labelFinal.style.display = 'none';
-            labelInit.innerText = `水深 ${expData.waterInit}cm`;
-            labelFinal.innerText = `水深 ${expData.waterFinal}cm`;
+            labelInit.innerText = expData.labelInitText;
+            labelFinal.innerText = expData.labelFinalText;
 
             // 3. 建立互動操作物件
             for (let i = 0; i < expData.objectsCount; i++) {
