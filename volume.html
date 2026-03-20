@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>504容積水位變化互動實驗</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Three.js 與 OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        #canvas-container {
+            touch-action: none;
+            cursor: grab;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        .label-3d {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 15px;
+            font-weight: bold;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: opacity 0.3s ease;
+        }
+        .tab-btn { transition: all 0.3s; }
+    </style>
+</head>
+<body class="bg-slate-50 text-gray-800 font-sans min-h-screen p-3 md:p-6">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- 標題區 -->
+        <header class="text-center mb-6">
+            <h1 class="text-2xl md:text-4xl font-bold text-blue-800 mb-2">🧪 504容積水位變化互動實驗</h1>
+            <p class="text-base md:text-lg text-gray-600">旋轉視角觀察，並親自動手操作來驗證容積與體積的關係！</p>
+        </header>
+
+        <!-- 實驗切換選單 -->
+        <div class="flex justify-center mb-6 gap-2 md:gap-4 flex-wrap">
+            <button onclick="loadExperiment(1)" id="tab-1" class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-full font-bold shadow-md bg-blue-600 text-white hover:bg-blue-700">實驗一：撈出磚塊</button>
+            <button onclick="loadExperiment(2)" id="tab-2" class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-full font-bold shadow-md bg-white text-blue-600 hover:bg-blue-50">實驗二：放入石塊</button>
+            <button onclick="loadExperiment(3)" id="tab-3" class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-full font-bold shadow-md bg-white text-blue-600 hover:bg-blue-50">實驗三：取出積木</button>
+            <button onclick="loadExperiment(4)" id="tab-4" class="tab-btn px-4 py-2 md:px-6 md:py-3 rounded-full font-bold shadow-md bg-white text-blue-600 hover:bg-blue-50">實驗四：放入鐵球</button>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-6">
+            
+            <!-- 左側：題目與操作說明 -->
+            <div class="w-full lg:w-1/3 flex flex-col gap-6">
+                <!-- 題目區 -->
+                <div class="bg-white p-5 md:p-6 rounded-2xl shadow-xl border-t-4 border-blue-500">
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                        <span class="bg-blue-100 text-blue-800 p-2 rounded-lg mr-3 text-lg">✏️ 題目</span>
+                    </h2>
+                    <p id="question-text" class="text-base md:text-lg leading-relaxed mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200"></p>
+
+                    <div class="bg-cyan-50 p-4 rounded-xl">
+                        <h3 class="font-bold text-lg mb-3 text-cyan-800 flex items-center">
+                            <span class="mr-2">🔍</span> 實驗觀察步驟
+                        </h3>
+                        <ul class="space-y-3 text-gray-700 text-sm md:text-base">
+                            <li class="flex items-start">
+                                <span class="bg-cyan-200 text-cyan-800 rounded-full w-5 h-5 flex items-center justify-center font-bold mr-2 shrink-0">1</span>
+                                <div><strong>旋轉觀察：</strong>在右方畫面上按住空白處<strong>拖曳旋轉</strong>。</div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="bg-cyan-200 text-cyan-800 rounded-full w-5 h-5 flex items-center justify-center font-bold mr-2 shrink-0">2</span>
+                                <div><strong>動手操作：</strong><span id="instruction-action"></span></div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：3D 互動區 -->
+            <div class="w-full lg:w-2/3 bg-white p-2 md:p-3 rounded-2xl shadow-xl border-t-4 border-cyan-400 relative">
+                <div id="canvas-container" class="w-full h-[500px] md:h-[700px] rounded-xl overflow-hidden relative bg-gradient-to-b from-slate-100 to-white">
+                    <div id="label-init" class="label-3d text-red-600 border border-red-200">初始水位</div>
+                    <div id="label-final" class="label-3d text-blue-600 border border-blue-300 hidden">最終水位</div>
+                    <div id="dragHint" class="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-black/60 text-white px-5 py-2 rounded-full pointer-events-none animate-bounce flex items-center text-sm md:text-base whitespace-nowrap z-10">
+                        👆 點擊物件拖曳
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // === 實驗設定資料 ===
+        const experimentsData = {
+            1: {
+                title: "有厚度的箱子",
+                question: "有一個厚度是 <strong class='text-red-500'>1</strong> 公分的長方體塑膠箱子，外面長 <strong class='text-blue-600'>26</strong> 公分、寬 <strong class='text-blue-600'>21</strong> 公分、高 <strong class='text-blue-600'>24</strong> 公分，把塑膠箱子裡的磚塊撈出後（原來磚塊完全沉在水面下），水深從 <strong class='text-purple-600'>18</strong> 公分變成 <strong class='text-purple-600'>15</strong> 公分，磚塊的體積是幾立方公分？",
+                instruction: "請點擊水中的<strong>磚塊</strong>，按住<strong>往上拉</strong>出水面，觀察水深變化。",
+                actionHint: "👆 將磚塊往上拉出",
+                type: "pull_out",
+                hasThickness: true,
+                innerSize: [24, 23, 19], 
+                waterInit: 18,
+                waterFinal: 15,
+                objectType: "brick",
+                objectSize: [12, 6, 18],
+                objectsCount: 1,
+                minY: 4, maxY: 32,
+                inY: 16, outY: 19 // 校正精準度：考慮到底板厚度1公分，水面範圍在 16~19 之間
+            },
+            2: {
+                title: "放入石塊",
+                question: "豆豆在下面的容器中（內部長 <strong class='text-blue-600'>12</strong> 公分、寬 <strong class='text-blue-600'>8</strong> 公分，目前水深 <strong class='text-purple-600'>10</strong> 公分），放入一塊體積 <strong class='text-red-500'>480</strong> 立方公分的石塊，水面上升幾公分？",
+                instruction: "請點擊上方的<strong>石塊</strong>，按住<strong>往下放</strong>入水中，觀察水面上升的情況。",
+                actionHint: "👇 將石塊往下放入水中",
+                type: "put_in",
+                hasThickness: false,
+                innerSize: [12, 20, 8], 
+                waterInit: 10,
+                waterFinal: 15,
+                objectType: "stone",
+                objectSize: [6, 5, 5], 
+                objectsCount: 1,
+                minY: 3, maxY: 28,
+                inY: 6, outY: 13
+            },
+            3: {
+                title: "取出5個不規則積木",
+                question: "有一個內部長 <strong class='text-blue-600'>18</strong> 公分、寬 <strong class='text-blue-600'>15</strong> 公分、水深 <strong class='text-purple-600'>12</strong> 公分的長方體水槽，裡面沉了 <strong class='text-red-500'>5</strong> 個一樣大的不規則積木。將這 5 個積木全部取出後（原來積木完全沉在水面下），水面下降 <strong class='text-purple-600'>2</strong> 公分，請問單一個不規則積木的體積是幾立方公分？",
+                instruction: "請點擊水中的<strong>5個積木</strong>，按住<strong>一一往上拉</strong>出水面，觀察水面每次下降的情況。",
+                actionHint: "👆 將積木一個一個往上拉出",
+                type: "pull_out",
+                hasThickness: false,
+                innerSize: [18, 16, 15], 
+                waterInit: 12,
+                waterFinal: 10,
+                objectType: "blocks",
+                objectSize: [3.5, 3.5, 3.5], 
+                objectsCount: 5,
+                minY: 3, maxY: 25,
+                inY: 10.25, outY: 11.75
+            },
+            4: {
+                title: "放入鐵球",
+                question: "有一個內部邊長是 <strong class='text-blue-600'>20</strong> 公分的正方體容器，注入水後，水深是 <strong class='text-purple-600'>12</strong> 公分，把一個體積 <strong class='text-red-500'>400</strong> 立方公分的鐵球放入容器裡(完全沉入水中)，水深會變成幾公分？",
+                instruction: "請點擊上方的<strong>鐵球</strong>，按住<strong>往下放</strong>入水中，觀察水深變成多少。",
+                actionHint: "👇 將鐵球往下放入水中",
+                type: "put_in",
+                hasThickness: false,
+                innerSize: [20, 20, 20], 
+                waterInit: 12,
+                waterFinal: 13,
+                objectType: "iron_ball",
+                objectSize: [9.14, 9.14, 9.14], 
+                objectsCount: 1,
+                minY: 4.6, maxY: 30,
+                inY: 7.4, outY: 16.6 // inY: 12 - 4.6 = 7.4; outY: 12 + 4.6 = 16.6
+            }
+        };
+
+        let currentExpId = 1;
+        let expData = experimentsData[currentExpId];
+
+        // === 3D 場景初始化 ===
+        const container = document.getElementById('canvas-container');
+        let width = container.clientWidth;
+        let height = container.clientHeight;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enablePan = false; 
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; 
+        controls.minPolarAngle = Math.PI / 8;
+        controls.minDistance = 20; 
+        controls.maxDistance = 120;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(20, 40, 20);
+        scene.add(dirLight);
+        const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        backLight.position.set(-20, 20, -20);
+        scene.add(backLight);
+
+        let tankGroup = new THREE.Group();
+        scene.add(tankGroup);
+        let water;
+        let markInit, markFinal;
+        let interactiveObjects = []; 
+        let dragBoxes = [];
+
+        const labelInit = document.getElementById('label-init');
+        const labelFinal = document.getElementById('label-final');
+
+        const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x88ccff, transparent: true, opacity: 0.15, roughness: 0.1, side: THREE.DoubleSide });
+        const thinGlassMat = new THREE.MeshPhysicalMaterial({ color: 0xcccccc, transparent: true, opacity: 0.2, roughness: 0.1, side: THREE.DoubleSide });
+        const edgeMat = new THREE.LineBasicMaterial({ color: 0x336699, linewidth: 2 });
+        const thinEdgeMat = new THREE.LineBasicMaterial({ color: 0x777777, linewidth: 1 });
+        const waterMat = new THREE.MeshBasicMaterial({ color: 0x33aaff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+
+        // === 構建實驗場景 ===
+        function buildScene() {
+            while(tankGroup.children.length > 0) { tankGroup.remove(tankGroup.children[0]); }
+            
+            // 重要修復：切換實驗時，不保留 savedY，讓物件乖乖回到預設位置！
+            interactiveObjects = [];
+            dragBoxes = [];
+
+            let outerW, outerH, outerD, inW, inH, inD, t;
+
+            if (expData.hasThickness) {
+                inW = expData.innerSize[0];
+                inH = expData.innerSize[1];
+                inD = expData.innerSize[2];
+                t = 1; // 有厚度時預設厚度
+                outerW = inW + 2*t;
+                outerH = inH + t; // 無蓋
+                outerD = inD + 2*t;
+            } else {
+                inW = expData.innerSize[0];
+                inH = expData.innerSize[1];
+                inD = expData.innerSize[2];
+                t = 0.1; // 模擬無厚度薄片
+                outerW = inW; outerH = inH; outerD = inD;
+            }
+
+            const maxDim = Math.max(outerW, outerH, outerD);
+            camera.position.set(maxDim * 1.2, maxDim * 1.2, maxDim * 2.5);
+            controls.target.set(0, maxDim * 0.2, 0);
+
+            // 1. 建立容器
+            if (expData.hasThickness) {
+                const createPlate = (w, h, d, x, y, z) => {
+                    if(w<=0 || h<=0 || d<=0) return;
+                    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), glassMat);
+                    mesh.position.set(x, y, z);
+                    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), edgeMat));
+                    tankGroup.add(mesh);
+                };
+                createPlate(outerW, t, outerD, 0, t/2, 0); // 底板
+                createPlate(t, outerH-t, outerD, -outerW/2 + t/2, t + (outerH-t)/2, 0); // 左板
+                createPlate(t, outerH-t, outerD, outerW/2 - t/2, t + (outerH-t)/2, 0); // 右板
+                createPlate(outerW-2*t, outerH-t, t, 0, t + (outerH-t)/2, -outerD/2 + t/2); // 後板
+                createPlate(outerW-2*t, outerH-t, t, 0, t + (outerH-t)/2, outerD/2 - t/2); // 前板
+            } else {
+                const createThinPlate = (w, h, d, x, y, z) => {
+                    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), thinGlassMat);
+                    mesh.position.set(x, y, z);
+                    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), thinEdgeMat));
+                    tankGroup.add(mesh);
+                };
+                createThinPlate(inW, 0.1, inD, 0, 0, 0);
+                createThinPlate(0.1, inH, inD, -inW/2, inH/2, 0);
+                createThinPlate(0.1, inH, inD, inW/2, inH/2, 0);
+                createThinPlate(inW, inH, 0.1, 0, inH/2, -inD/2);
+                createThinPlate(inW, inH, 0.1, 0, inH/2, inD/2);
+            }
+            tankGroup.position.y = -outerH/2; 
+
+            // 2. 建立動態水與標線
+            water = new THREE.Mesh(new THREE.BoxGeometry(inW - 0.2, 1, inD - 0.2), waterMat);
+            tankGroup.add(water);
+
+            const createMark = (height, colorHex) => {
+                const mesh = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(new THREE.PlaneGeometry(inW-0.1, inD-0.1)),
+                    new THREE.LineBasicMaterial({ color: colorHex })
+                );
+                mesh.rotation.x = -Math.PI / 2;
+                mesh.position.y = (expData.hasThickness ? 1 : 0) + height;
+                tankGroup.add(mesh);
+                return mesh;
+            };
+            markInit = createMark(expData.waterInit, 0xff0000); 
+            markFinal = createMark(expData.waterFinal, 0x0000ff);
+            
+            markFinal.visible = false;
+            labelFinal.style.display = 'none';
+            labelInit.innerText = `水深 ${expData.waterInit}cm`;
+            labelFinal.innerText = `水深 ${expData.waterFinal}cm`;
+
+            // 3. 建立互動操作物件
+            for (let i = 0; i < expData.objectsCount; i++) {
+                let objGroup = new THREE.Group();
+                
+                if (expData.objectType === "brick") {
+                    const brick = new THREE.Mesh(
+                        new THREE.BoxGeometry(...expData.objectSize),
+                        new THREE.MeshStandardMaterial({ color: 0xaa4433, roughness: 0.8 })
+                    );
+                    brick.add(new THREE.LineSegments(new THREE.EdgesGeometry(brick.geometry), new THREE.LineBasicMaterial({ color: 0xffa07a })));
+                    objGroup.add(brick);
+                } else if (expData.objectType === "stone") {
+                    const stone = new THREE.Mesh(
+                        new THREE.DodecahedronGeometry(expData.objectSize[0]/2, 1),
+                        new THREE.MeshStandardMaterial({ color: 0x777788, roughness: 1.0, flatShading: true })
+                    );
+                    objGroup.add(stone);
+                } else if (expData.objectType === "blocks") {
+                    const geo = new THREE.DodecahedronGeometry(expData.objectSize[0]/2, 0);
+                    geo.scale(1, 0.8 + Math.random()*0.4, 1);
+                    const mat = new THREE.MeshStandardMaterial({ color: 0xaa8822, roughness: 0.9, flatShading: true });
+                    const block = new THREE.Mesh(geo, mat); 
+                    block.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
+                    objGroup.add(block);
+                } else if (expData.objectType === "iron_ball") {
+                    const mat = new THREE.MeshStandardMaterial({ color: 0x666677, roughness: 0.4, metalness: 0.8 });
+                    const ball = new THREE.Mesh(new THREE.SphereGeometry(expData.objectSize[0]/2, 32, 32), mat);
+                    objGroup.add(ball);
+                }
+
+                let dBox = new THREE.Mesh(
+                    new THREE.BoxGeometry(expData.objectSize[0] + 1, expData.objectSize[1] + 2, expData.objectSize[2] + 1),
+                    new THREE.MeshBasicMaterial({ visible: false })
+                );
+                dBox.userData.parentGroup = objGroup;
+                objGroup.add(dBox);
+                dragBoxes.push(dBox);
+                
+                tankGroup.add(objGroup);
+                interactiveObjects.push(objGroup);
+
+                if (expData.objectsCount > 1) {
+                    const spacing = (inW - 4) / expData.objectsCount;
+                    const startX = -(inW / 2) + 2 + spacing / 2;
+                    objGroup.position.x = startX + i * spacing;
+                    objGroup.position.z = (Math.random() - 0.5) * 4; 
+                }
+
+                // 根據實驗設定，決定起始位置在水底還是水面外
+                objGroup.position.y = (expData.type === "pull_out") ? expData.minY : expData.maxY;
+            }
+
+            updateWaterLevel();
+        }
+
+        // === 物理連動更新邏輯 ===
+        function updateWaterLevel() {
+            let totalFactor = 0;
+            interactiveObjects.forEach(obj => {
+                let factor = (expData.outY - obj.position.y) / (expData.outY - expData.inY);
+                factor = Math.max(0, Math.min(1, factor));
+                totalFactor += factor;
+            });
+            
+            let avgFactor = totalFactor / interactiveObjects.length;
+            let t = (expData.type === "pull_out") ? (1.0 - avgFactor) : avgFactor;
+
+            const currentDepth = expData.waterInit + (expData.waterFinal - expData.waterInit) * t;
+            water.scale.y = currentDepth;
+            const baseY = expData.hasThickness ? 1 : 0;
+            water.position.y = baseY + (currentDepth / 2);
+
+            const isFinished = (t >= 0.99);
+            markFinal.visible = isFinished;
+            
+            if (isFinished) {
+                labelFinal.style.display = 'block';
+                labelFinal.classList.remove('opacity-0');
+            } else {
+                labelFinal.classList.add('opacity-0');
+                labelFinal.style.display = 'none';
+            }
+            updateLabelsPosition();
+        }
+
+        function updateLabelsPosition() {
+            const get2DPos = (height) => {
+                const baseY = expData.hasThickness ? 1 : 0;
+                let inW = expData.innerSize[0];
+                let inD = expData.innerSize[2];
+                const pos = new THREE.Vector3(inW/2, baseY + height, inD/3).add(tankGroup.position);
+                pos.project(camera);
+                return { x: (pos.x * .5 + .5) * width, y: (pos.y * -.5 + .5) * height };
+            };
+
+            const posInit = get2DPos(expData.waterInit);
+            labelInit.style.left = `${posInit.x}px`;
+            labelInit.style.top = `${posInit.y}px`;
+
+            if (markFinal.visible) {
+                const posFinal = get2DPos(expData.waterFinal);
+                labelFinal.style.left = `${posFinal.x}px`;
+                labelFinal.style.top = `${posFinal.y}px`;
+            }
+        }
+
+        // === UI 切換邏輯 ===
+        function loadExperiment(id) {
+            currentExpId = id;
+            expData = experimentsData[id];
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('bg-white', 'text-blue-600');
+            });
+            const activeBtn = document.getElementById(`tab-${id}`);
+            activeBtn.classList.remove('bg-white', 'text-blue-600');
+            activeBtn.classList.add('bg-blue-600', 'text-white');
+
+            document.getElementById('question-text').innerHTML = expData.question;
+            document.getElementById('instruction-action').innerHTML = expData.instruction;
+            document.getElementById('dragHint').style.display = 'flex';
+            document.getElementById('dragHint').innerText = expData.actionHint;
+            
+            labelInit.style.display = 'block';
+            buildScene();
+        }
+
+        // === 拖曳事件處理 (支援滑鼠與觸控) ===
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let isDragging = false;
+        let previousMouseY = 0;
+        let currentDraggedObject = null;
+
+        container.addEventListener('pointerdown', (e) => {
+            const rect = container.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(dragBoxes);
+            
+            if (intersects.length > 0) {
+                isDragging = true;
+                controls.enabled = false; 
+                currentDraggedObject = intersects[0].object.userData.parentGroup;
+                previousMouseY = e.clientY;
+                document.getElementById('dragHint').style.display = 'none'; 
+                container.setPointerCapture(e.pointerId);
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!isDragging || !currentDraggedObject) return;
+            const deltaY = e.clientY - previousMouseY;
+            previousMouseY = e.clientY;
+
+            currentDraggedObject.position.y -= deltaY * 0.15;
+
+            if (currentDraggedObject.position.y < expData.minY) currentDraggedObject.position.y = expData.minY;
+            if (currentDraggedObject.position.y > expData.maxY) currentDraggedObject.position.y = expData.maxY;
+
+            updateWaterLevel();
+        });
+
+        window.addEventListener('pointerup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                currentDraggedObject = null;
+                controls.enabled = true; 
+                container.releasePointerCapture(e.pointerId);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            updateLabelsPosition();
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            if (!isDragging) {
+                updateLabelsPosition(); 
+            }
+            renderer.render(scene, camera);
+        }
+
+        loadExperiment(1);
+        animate();
+
+    </script>
+</body>
+</html>
